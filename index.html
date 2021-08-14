@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body onload="fetchWebAssembly()">
+    <button onclick="AssemblyScript()">Run AssemblyScript code</button>
+    <br />
+    <p id="comment"></p>
+    <br />
+    <button onclick="fractalsJS()">Run Js fractal code</button>
+    <button onclick="fractalWasm()">Run AssemblyScript fractal code</button>
+    <br />
+    <canvas id="canvas" width="600" height="600" /></canvas>
+    <br />
+    <input placeholder="put required index" id='index'/>
+    <input placeholder="put required value" id='value'/>
+    <button onclick="loadStore()"> Load store test</button>
+    <button onclick="saveStore()"> save store test</button>
+    <h1>Picture filter</h1>
+    <div id="time">&nbsp;</div>
+    <input type="file" id="file" onchange="memorySet()" /> Input image file
+    <table>
+      <tr>
+          <th><button onclick="js.reset()">Reset</button>
+      <tr>
+          <th>JavaScript
+          <td><button onclick="js.invert()">Invert</button>
+          <td><button onclick="js.grayscale()">Grayscale</button>
+          <td><button onclick="js.sepia()">Sepia</button>
+          <td><button onclick="js.convolve(width, offset.blur, ...matrices.blur )">Blur</button>
+          <td><button onclick="js.convolve(width, offset.edge_detect, ...matrices.edge_detect )">Edge detect</button>
+          <td><button onclick="js.convolve(width, offset.emboss, ...matrices.emboss )">Emboss</button>
+      <tr>
+          <th>AssemblyScript
+          <td><button onclick="as.invert()">Invert</button>
+          <td><button onclick="as.grayscale()">Grayscale</button>
+          <td><button onclick="as.sepia()">Sepia</button>
+          <td><button onclick="as.convolve(width, offset.blur, ...matrices.blur )">Blur</button>
+          <td><button onclick="as.convolve(width, offset.edge_detect, ...matrices.edge_detect )">Edge detect</button>
+          <td><button onclick="as.convolve(width, offset.emboss, ...matrices.emboss )">Emboss</button>
+  </table>
+  <button onclick="imageDownload()"
+  let link = document.createElement('a');
+  link.download = "modifed image">Download Image</button>
+  </body>
+  <script>
+var comment = document.getElementById("comment");
+var result;
+
+const initial = 2 * (((byteSize + 0xffff) & ~0xffff) >>> 16);
+//var memory = new WebAssembly.Memory({initial})
+var memory = new WebAssembly.Memory({initial:10,maximum:100})
+
+//var resultInstance;
+var byteSize=0; 
+var data;
+
+var canvas = document.getElementById("canvas")
+var ctx = canvas.getContext("2d");
+var width = canvas.width;
+var height = canvas.height;
+
+function loadStore(){
+    console.log("This is value from loadStore Func ", resultInstance.exports.loadStore(document.getElementById('index').value))
+  }
+
+function saveStore() {
+  resultInstance.exports.saveStore(document.getElementById('index').value,document.getElementById('value').value)
+}
+
+
+ async function fetchWebAssembly() {
+  var importObjects = {
+    main: {
+      sayHello() {
+        console.log("Hello from WebAssembly!");
+      },
+    },
+    env: {
+      memory,
+      abort(_msg, _file, line, column) {
+        console.error("abort called at main.ts:" + line + ":" + column);
+      },
+    },
+  };
+
+  
+
+  //console.log("This is mem",mem);
+  console.log('this is memory',memory);
+
+  /* result = WebAssembly.instantiateStreaming(
+    fetch("optimized.wasm"),
+    importObjects
+  ).then((result) => {
+    console.log("webassembly fetched !");
+    console.log(result);
+    return result;
+  }); */
+  /* OR */
+  var {instance} = await WebAssembly.instantiateStreaming(fetch("optimized.wasm"), importObjects);
+  resultInstance = instance;
+  console.log(resultInstance);
+}
+
+function fractalsJS() {
+
+  ctx.clearRect(0, 0, 800, 800);
+  //ctx.fillRect(0, 0, 100, 100);
+
+  let mag = 200;
+  let panX = 2;
+  let panY = 1.25;
+  let maxIter = 100;
+
+  for (let x = 10; x < 800; x++) {
+    for (let y = 10; y < 800; y++) {
+      let m = mandelIter(x / mag - panX, y / mag - panY, maxIter);
+      ctx.fillStyle = m === 0 ? "#000" : "hsl(0, 100%, " + m + "%)";
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  function mandelIter(x, y, maxIter) {
+    let r = x;
+    let i = y;
+    for (let a = 0; a < maxIter; a++) {
+      let tmpr = r * r - i * i + x;
+      let tmpi = 2 * r * i + y;
+
+      r = tmpr;
+      i = tmpi;
+
+      if (r * i > 5) {
+        return (a / maxIter) * 100;
+      }
+    }
+
+    return 0;
+  }
+}
+
+function fractalWasm() {
+
+  ctx.clearRect(0, 0, 800, 800);
+  //ctx.fillRect(0, 0, 800, 800);
+
+  let mag = 200;
+  let panX = 2;
+  let panY = 1.25;
+  let maxIter = 100;
+
+    for (let x = 10; x < 800; x++) {
+      for (let y = 10; y < 800; y++) {
+        let m = resultInstance.exports.mandelIter(
+          x / mag - panX,
+          y / mag - panY,
+          maxIter
+        );
+        ctx.fillStyle = m === 0 ? "#000" : "hsl(0, 100%, " + m + "%)";
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+  };
+}
+
+function AssemblyScript() {
+  comment.innerHTML = "Check console for loggings";
+
+  var fibJs = (n) => {
+    if (n <= 1) return 1;
+    return fibJs(n - 1) + fibJs(n - 2);
+  };
+  console.log(resultInstance);
+
+    var exports = resultInstance.exports;
+    var addFunc = exports.add;
+    var subtractFunc = exports.subtract;
+    var fibonacci = exports.fib;
+    console.log("Running wasm code for add", addFunc(5, 9));
+    console.log("Running wasm code for subtract", subtractFunc(100 - 10));
+
+    console.log(
+      "%c WebAssembly VS JavaScript Speed",
+      "font-size:20px; color:orange"
+    );
+    console.time("fib-wasm");
+    console.log("fib(45) with wasm", fibonacci(45));
+    console.timeEnd("fib-wasm");
+    console.time("fib-js");
+    console.log("fibJS(45) with JS", fibJs(45));
+    console.timeEnd("fib-js");
+
+}
+
+ async function memorySet(){
+  data = document.getElementById('file').files[0];
+
+  byteSize = await document.getElementById('file').files[0].size;
+
+  var cloneImage = await loadImage(data);
+
+  var scale = Math.max(width / cloneImage.width, height / cloneImage.height);
+  var x = (width / 2) - (cloneImage.width / 2) * scale;
+  var y = (height / 2) - (cloneImage.height / 2) * scale;
+
+
+  ctx.drawImage(cloneImage, x, y, cloneImage.width * scale, cloneImage.height * scale);
+
+  //ctx.drawImage(cloneImage,0,0);
+
+  const imageData = ctx.getImageData(0, 0, width, height);
+  console.log(imageData)
+  setupJsTransforms(ctx, imageData)
+  setupAsTransforms(ctx, imageData) 
+}
+
+// Need Explanation for this code !!!!!!
+async function loadImage(data){
+return new Promise(resolve =>{
+  var  image = new Image();
+  image.src = URL.createObjectURL(data);
+  image.onload = function() { resolve(this) };
+})
+}
+
+var js = {}
+var as = {}
+
+function setupJsTransforms(ctx, imageData){
+  const backup = imageData.data.slice();
+  Object.assign(js,{
+      reset: js_transform(function reset(data){ data.set(backup)}, imageData, ctx),
+      invert: js_transform(invert, imageData, ctx),
+      grayscale: js_transform(grayscale, imageData, ctx),
+      sepia: js_transform(sepia, imageData, ctx),
+      convolve: js_transform(convolve, imageData, ctx),
+  });
+
+}
+
+async function setupAsTransforms(ctx, imageData){
+  console.log("This is byseSize just before set",byteSize)
+  let memCheck1 = new Uint8ClampedArray(imageData.data).byteLength  // this for checking bite size of file against available byte in memory
+  let memCheck2 = new Uint8ClampedArray(memory.buffer).byteLength
+  console.log("this is mem, memCheck1.length, memCheck2.length", mem,memCheck1.byteLength,memCheck2.byteLength)
+  if(memCheck1 > memCheck2){
+    console.log("if statement runs this is subtraction",memCheck1 - memCheck2)
+    memory.grow(((((memCheck1 - (memCheck2)) + 0xffff) & ~0xffff) >>> 16) );
+  }
+  
+  //memory.grow(11*((((byteSize) + 0xffff) & ~0xffff) >>> 16) );
+  //memory.grow(byteSize/64690)
+  var mem = new Uint8ClampedArray(memory.buffer) 
+
+  Object.assign(as, {
+    invert: as_transform("invert", imageData, ctx, mem, resultInstance),
+    grayscale: as_transform("grayscale", imageData, ctx, mem, resultInstance),
+    sepia: as_transform("sepia", imageData, ctx, mem, resultInstance),
+    convolve: as_transform("convolve", imageData, ctx, mem, resultInstance),
+});
+}
+
+function js_transform(fn, imageData, ctx) {
+return (...args) => {
+    let data = imageData.data;
+    let time = performance.now();
+    fn(data, ...args);
+    logTime(`JS_${fn.name}`, time);
+    ctx.putImageData(imageData, 0, 0);
+}
+};
+
+function as_transform(fn, imageData, ctx, mem, instance) {
+        return (...args) => {
+            //retrieve image pixels (4 bytes per pixel: RBGA)
+            var data = imageData.data;
+            //copy to bytes to shared memory
+            mem.set(data);
+
+            //invoque 'fn'  Wasm filter. We need to inform of the image byte size
+            const byteSize = data.length;
+            console.log('bytesize in as_transform',this.byteSize);
+            let time = performance.now();
+            instance.exports[fn](byteSize, ...args);
+            logTime(`AS_${fn}`, time);
+
+            //copy the response from the shared memory into the canvas imageData
+            //data.set(mem.subarray(byteSize, 2 * byteSize));
+            data.set(mem.subarray(0,byteSize));
+            console.log("data that is being copied from shared memory",mem.subarray(0, 2 * byteSize))
+            //imageData.data.set(data);
+            console.log("Modified image data",imageData.data);
+            ctx.putImageData(imageData, 0, 0);
+        }
+    };
+
+function logTime(name, start) {
+let end = performance.now();
+document.getElementById("time").innerText = `${name}: ${(end - start).toFixed(1)} ms `;
+}
+
+function invert(data) {
+for (var i = 0; i < data.length; i += 4) {
+    data[i]     = 255 - data[i];
+    data[i + 1] = 255 - data[i + 1];
+    data[i + 2] = 255 - data[i + 2];
+}
+};
+
+function grayscale(data){
+for (var i = 0, len = data.length; i < len; i += 4) {
+    const avg = 0.3  * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+    data[i]     = avg;
+    data[i + 1] = avg;
+    data[i + 2] = avg;
+}
+}
+
+function sepia(data){
+for (var i = 0, len = data.length; i < len; i += 4) {
+    const avg = 0.3  * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+    data[i]     = avg + 100;
+    data[i + 1] = avg + 50;
+    data[i + 2] = avg;
+}
+}
+
+function addConvolveValue(pos, i, data, length){
+return pos >= 0 && pos < length ? data[pos] : data[i];
+}
+
+function convolve(data, w, offset, v00, v01, v02, v10, v11, v12, v20, v21, v22){
+console.log( w, offset, v00, v01, v02, v10, v11, v12, v20, v21, v22)
+const divisor = (v00 + v01 + v02 + v10 + v11 + v12 + v20 + v21 + v22) || 1;
+const length = data.length;
+let res = 0;
+let newData = new Uint8Array(length);
+console.log("this is length", length)
+for (let i = 0; i < length; i++) {
+    if (((i + 1) & 3) == 0) {
+        newData[i] = data[i];
+        continue;
+    }
+    let res = v00 * addConvolveValue(i - w * 4 - 4, i, data, length) +
+              v01 * addConvolveValue(i - w * 4, i, data, length) +
+              v02 * addConvolveValue(i - w * 4 + 4, i, data, length) +
+              v10 * addConvolveValue(i - 4, i, data, length) +
+              v11 * data[i] +
+              v12 * addConvolveValue(i + 4, i, data, length) +
+              v20 * addConvolveValue(i + w * 4 - 4, i, data, length) +
+              v21 * addConvolveValue(i + w * 4 , i, data, length) +
+              v22 * addConvolveValue(i + w * 4 + 4, i, data, length);
+    res /= divisor;
+    res += offset;
+    newData[i] = res;
+}
+data.set(newData)
+}
+
+async function imageDownload(){
+  let blob = await new Promise(resolve => canvas.toBlob(resolve,'image/png'))
+  let link = document.createElement('a');
+  link.download = "modified-image.png";
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href); 
+
+  /* OR the non async version*/
+
+  /*  canvas.toBlob((blob)=>{
+  let link = document.createElement('a');
+  link.download = "modified-image.png";
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  }) */
+
+
+  // The following are valid ways to download files in javascript. However they don't seem to be readable as an image file
+
+  /* const imageData = ctx.getImageData(0, 0, width, height);
+  let blob = new Blob(imageData.data,{type:'image/png'});
+  let link = document.createElement('a');
+  link.download = "modified-image.jpeg";
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href); */
+
+ /*  const imageData = ctx.getImageData(0, 0, width, height);
+  let blob = new Blob(imageData.data,{type:'image/png'});
+  let link = document.createElement('a');
+  link.download = "modified-image.jpeg";
+  let reader = new FileReader();
+  reader.readAsDataURL(blob);
+  reader.onload=()=>{
+    link.href = reader.result
+    link.click();
+  } */
+
+  // reading files arrayBuffers
+  /* const imageData = ctx.getImageData(0, 0, width, height);
+  let blob = new Blob(imageData.data,{type:'image/png'});
+  let reader = new FileReader();
+  reader.readAsArrayBuffer(blob);
+  reader.onload=()=>{
+  console.log(reader.result);
+  } */
+
+  
+}
+
+const offset = {
+'sharpen1':0,
+'sharpen2':0,
+'blur':0,
+'emboss':127,
+'emboss_subtle':0,
+'edge_detect':0,
+'edge_detect_2':0,
+}
+
+const matrices = {
+'sharpen1': [-1, -1, -1, -1,  9, -1, -1, -1, -1],
+'sharpen2': [ 0, -2,  0, -2, 11, -2,  0, -2,  0],
+'blur': [ 1,  2,  1, 2,  4,  2, 1,  2,  1],
+'emboss': [ 2,  0,  0, 0, -1,  0, 0,  0, -1],
+'emboss_subtle': [ 1,  1, -1, 1,  3, -1, 1, -1, -1],
+'edge_detect': [ 1,  1,  1, 1, -7,  1, 1,  1,  1],
+'edge_detect_2': [-5,  0,  0, 0,  0,  0,  0,  0,  5],
+}
+  </script>
+</html>
